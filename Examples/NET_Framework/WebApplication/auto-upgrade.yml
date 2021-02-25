@@ -1,0 +1,132 @@
+schedules:
+- cron: '0 0 * * *'     # Every day at 00:00 UTC
+  displayName: Daily Upgrade Check
+  branches:
+    include:
+      - master          # Only execute against master
+  always: true          # Always run the schedule
+
+trigger: none           # Disable default triggers
+pr: none                # Disable default triggers
+
+variables:
+  ProjectFile: "src/Shazwazza.Web/Shazwazza.Web.csproj"
+  PackageFile: "src/Shazwazza.Web/packages.config"
+  PackageName: UmbracoCms
+  GitHubOwner: Shazwazza
+  GitHubRepository: shazwazza.com
+  GitBotUser: "Friendly Upgrade Bot"
+  GitBotEmail: "upgrader@umbraco.io"
+  DisableUpgradeStep: false     # Used for testing
+  DisableCommit: false          # Used for testing
+  DisablePush: false            # Used for testing
+  DisablePullRequest: false     # Used for testing
+
+pool:
+  vmImage: 'windows-latest'
+
+steps:
+- checkout: self
+  clean: true               #always start from scratch
+  persistCredentials: true  # We need to Git push so needs to be true
+
+- pwsh: |
+    $VerbosePreference = "continue"
+
+    # Set the module folder env variable so that our custom functions are auto-loaded
+    $env:PSModulePath = $env:PSModulePath + "$([System.IO.Path]::PathSeparator)$(Build.SourcesDirectory)\build\PowershellRepository\"
+    # Ensure the env variable value flows through to the next tasks
+    echo "##vso[task.setvariable variable=PSModulePath]$env:PSModulePath"    
+
+    Install-Module -Name PowerShellForGitHub -Force
+    # Enable logging to a relative file
+    $logPath = "$Env:AGENT_TEMPDIRECTORY\PSForGHLog.txt"
+    Write-Verbose "Logging to: $logPath"
+    Set-GitHubConfiguration -LogPath $logPath -DisableLogging:$false
+  displayName: "Installing modules and initializing"
+
+- pwsh: |    
+    $currentVersion = Get-CurrentPackageVersion -OwnerName $(GitHubOwner) -RepositoryName $(GitHubRepository) -AccessToken $(GitHubAccessToken) -PackageFile $(PackageFile) -PackageName $(PackageName)
+    if (!$currentVersion){
+        Throw "Could not determine package version, cannot continue"
+    }
+    Write-Verbose "Latest local version of $PackageName is $currentVersion" -Verbose
+    # set the variables
+    echo "##vso[task.setvariable variable=CurrentVersion]$currentVersion"
+  displayName: "Get latest version of $(PackageName) from GitHub"
+
+- pwsh: |    
+    $nuget = Get-NugetExe -DestinationFolder $Env:AGENT_TEMPDIRECTORY
+    $latest = Get-LatestPackageVersion -PackageName $(PackageName) -NugetExe $nuget
+    if (!$latest){
+        Throw "Could not determine package version, cannot continue"
+    }
+    Write-Verbose "Latest nuget version of $(PackageName) is $latest" -Verbose
+
+    # Compare versions
+    $hasUpgrade = Get-UpgradeAvailable -SourceVersion $(CurrentVersion) -DestVersion $latest
+    if ($hasUpgrade) {
+        Write-Verbose "An upgrade is available!" -Verbose
+    }
+    # set the variables
+    echo "##vso[task.setvariable variable=LatestVersion]$latest"
+    echo "##vso[task.setvariable variable=HasUpgrade]$hasUpgrade"
+    echo "##vso[task.setvariable variable=NugetExe]$nuget"
+  displayName: "Get latest version of $(PackageName) from Nuget"
+
+- pwsh: |    
+    $branchName = "$(PackageName)-upgrade-$(CurrentVersion)-to-$(LatestVersion)"
+    $pr = Get-PullRequest -OwnerName $(GitHubOwner) -RepositoryName $(GitHubRepository) -AccessToken $(GitHubAccessToken) -BranchName $branchName
+    if ($pr) {
+        throw "A Pull Request already exists for this upgrade"
+    }
+    else {
+        Write-Verbose "An existing PR for this upgrade does not exist" -Verbose
+        # set the variables
+        echo "##vso[task.setvariable variable=BranchName]$branchName"
+    }
+  condition: and(succeeded(), eq(variables.HasUpgrade, 'True'))
+  displayName: "Check for existing PR"
+
+- pwsh : |     
+    git show-ref --verify --quiet `"refs/heads/$(BranchName)`"
+    if ($?){
+        Write-Verbose "Branch $(BranchName) already exists, updating to branch" -Verbose
+        git checkout "$(BranchName)"
+    }
+    else {
+        git branch "$(BranchName)"
+        git checkout "$(BranchName)"
+    }    
+  condition: and(succeeded(), eq(variables.DisableUpgradeStep, false))
+  displayName: 'Creating branch'
+
+- pwsh : |
+    $repoRoot = Get-Item $(Build.SourcesDirectory)
+    Update-NugetPackage -PackageName $(PackageName) -PackageVersion $(LatestVersion) -ProjectFile $(ProjectFile) -RootGitDirectory $($repoRoot.FullName) -NugetExe $(NugetExe)
+  condition: and(succeeded(), eq(variables.DisableUpgradeStep, false))
+  displayName: 'Upgrading project'
+
+- task: MSBuild@1  
+  inputs:
+    solution: '$(ProjectFile)'
+    restoreNugetPackages: false
+  condition: and(succeeded(), eq(variables.DisableUpgradeStep, false))
+  displayName: 'Building project'
+
+- pwsh : |
+    $message = "Updated files for the $(PackageName) from $(CurrentVersion) to $(LatestVersion)"
+    git add -A
+    git -c "user.name=$(GitBotUser)" -c "user.email=$(GitBotEmail)" commit -am "$message" --author "$(GitBotUser) <$(GitBotEmail)>"
+  condition: and(succeeded(), eq(variables.DisableCommit, false))
+  displayName: 'Committing changes'
+
+- pwsh : |    
+    git -c "user.name=$(GitBotUser)" -c "user.email=$(GitBotEmail)" push -u origin "$(BranchName)"
+  condition: and(succeeded(), eq(variables.DisablePush, false))
+  displayName: 'Push changes'
+
+- pwsh : |    
+    $pr = New-PullRequest -OwnerName $(GitHubOwner) -RepositoryName $(GitHubRepository) -AccessToken $(GitHubAccessToken) -SourceVersion $(CurrentVersion) -PackageVersion $(LatestVersion) -PackageName $(PackageName) -BranchName $(BranchName)
+  condition: and(succeeded(), eq(variables.DisablePullRequest, false))
+  displayName: 'Creating pull request'
