@@ -50,7 +50,7 @@ steps:
     if (!$currentVersion){
         Throw "Could not determine package version, cannot continue"
     }
-    Write-Verbose "Latest local version of $PackageName is $currentVersion" -Verbose
+    Write-Verbose "Latest local version of $(PackageName) is $currentVersion" -Verbose
     # set the variables
     echo "##vso[task.setvariable variable=CurrentVersion]$currentVersion"
   displayName: "Get latest version of $(PackageName) from GitHub"
