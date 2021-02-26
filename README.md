@@ -7,10 +7,10 @@ See blog post for full details: https://shazwazza.com/post/auto-upgrade-your-nug
 ## Working
 
 * .NET Framework projects (.csproj) with packages.config with Azure Pipelines
+* .NET Framework projects (.csproj) with packages.config with GitHub Actions
 
 ## TODO
 
-* GitHub actions
 * Come up with a better name
 * Entire solutions (.sln)
 * .NET Core/5 projects
