@@ -238,16 +238,16 @@ function Invoke-NugetUpdate
         throw "The Nuget exe file does not exist $NugetExe"
     }
 
-    Write-Verbose "Running Nuget update $ProjectFile -ConfigFile $NugetConfigFile -RepositoryPath $PackagesPath -Id $PackageName -FileConflictAction overwrite -NonInteractive -MSBuildPath $MSBuildPath -DependencyVersion Ignore"
+    Write-Verbose "Running Nuget update $ProjectFile -ConfigFile $NugetConfigFile -RepositoryPath $PackagesPath -Id $PackageName -FileConflictAction overwrite -NonInteractive -MSBuildPath $MSBuildPath"
 
     # NOTE: 'overwrite' is not right, but IgnoreAll and Ignore ends up deleting files!@
     # NOTE: -DependencyVersion Ignore is required for some reason, without that we cannot upgrade in many cases, still haven't figured out why
 
     if ($MSBuildPath) {
-        & $NugetExe update "$ProjectFile" -ConfigFile "$NugetConfigFile" -RepositoryPath "$PackagesPath" -Id "$PackageName" -FileConflictAction overwrite -NonInteractive -MSBuildPath "$MSBuildPath" -DependencyVersion "Ignore" -Version $PackageVersion
+        & $NugetExe update "$ProjectFile" -ConfigFile "$NugetConfigFile" -RepositoryPath "$PackagesPath" -Id "$PackageName" -FileConflictAction overwrite -NonInteractive -MSBuildPath "$MSBuildPath" -Version $PackageVersion
     }
     else {
-        & $NugetExe update "$ProjectFile" -ConfigFile "$NugetConfigFile" -RepositoryPath "$PackagesPath" -Id "$PackageName" -FileConflictAction overwrite -NonInteractive -DependencyVersion "Ignore" -Version $PackageVersion
+        & $NugetExe update "$ProjectFile" -ConfigFile "$NugetConfigFile" -RepositoryPath "$PackagesPath" -Id "$PackageName" -FileConflictAction overwrite -NonInteractive -Version $PackageVersion
     }
     
     if($LASTEXITCODE -eq 0) {
