@@ -118,15 +118,14 @@ steps:
   displayName: 'Renaming Branch'
 
 - pwsh : |    
-    $message = "Updated files for the $(PackageName) from $(CurrentVersion) to $actualVersion (Attempted $(LatestVersion) )"
+    $message = "Updated files for the $(PackageName) from $(CurrentVersion) to $(ActualVersion) (Attempted $(LatestVersion) )"
     git add -A
     git -c "user.name=$(GitBotUser)" -c "user.email=$(GitBotEmail)" commit -am "$message" --author "$(GitBotUser) <$(GitBotEmail)>"
   condition: and(succeeded(), eq(variables.DisableCommit, false))
   displayName: 'Committing changes'
 
 - pwsh: |
-    $ghRepoParts = "${{ github.repository }}".Split("/")
-    $pr = Get-PullRequest -OwnerName $ghRepoParts[0] -RepositoryName $ghRepoParts[1] -AccessToken ${{ secrets.GITHUB_TOKEN }} -BranchName ${{ env.BranchName }}
+    $pr = Get-PullRequest -OwnerName $(GitHubOwner) -RepositoryName $(GitHubRepository) -AccessToken $(GitHubAccessToken) -BranchName $branchName
     if ($pr) {
         throw "A Pull Request already exists for this upgrade"
     }
@@ -141,6 +140,6 @@ steps:
   displayName: 'Push changes to $(BranchName)'
 
 - pwsh : |    
-    $pr = New-PullRequest -OwnerName $(GitHubOwner) -RepositoryName $(GitHubRepository) -AccessToken $(GitHubAccessToken) -SourceVersion $(CurrentVersion) -PackageVersion $(LatestVersion) -PackageName $(PackageName) -BranchName $(BranchName)
+    $pr = New-PullRequest -OwnerName $(GitHubOwner) -RepositoryName $(GitHubRepository) -AccessToken $(GitHubAccessToken) -SourceVersion $(CurrentVersion) -PackageVersion $(ActualVersion) -PackageName $(PackageName) -BranchName $(BranchName)
   condition: and(succeeded(), eq(variables.DisablePullRequest, false))
   displayName: 'Creating pull request'

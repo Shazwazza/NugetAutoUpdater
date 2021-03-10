@@ -126,8 +126,8 @@ jobs:
       shell: pwsh
     
     - name: Committing changes
-      run: |        
-        $message = "Updated files for the ${{ env.PackageName }} from ${{ env.CurrentVersion }} to ${{ env.LatestVersion }}"
+      run: |
+        $message = "Updated files for the ${{ env.PackageName }} from ${{ env.CurrentVersion }} to ${{ env.ActualVersion }} (Attempted ${{ env.LatestVersion }} )"
         git add -A
         git -c "user.name=${{ env.GitBotUser }}" -c "user.email=${{ env.GitBotEmail }}" commit -am "$message" --author "${{ env.GitBotUser }} <${{ env.GitBotEmail }}>"
       shell: pwsh
@@ -154,6 +154,6 @@ jobs:
     - name: Creating pull request
       run : |
         $ghRepoParts = "${{ github.repository }}".Split("/")
-        $pr = New-PullRequest -OwnerName $ghRepoParts[0] -RepositoryName $ghRepoParts[1] -AccessToken ${{ secrets.GITHUB_TOKEN }} -SourceVersion ${{ env.CurrentVersion }} -PackageVersion ${{ env.LatestVersion }} -PackageName ${{ env.PackageName }} -BranchName ${{ env.BranchName }}
+        $pr = New-PullRequest -OwnerName $ghRepoParts[0] -RepositoryName $ghRepoParts[1] -AccessToken ${{ secrets.GITHUB_TOKEN }} -SourceVersion ${{ env.CurrentVersion }} -PackageVersion ${{ env.ActualVersion }} -PackageName ${{ env.PackageName }} -BranchName ${{ env.BranchName }}
       shell: pwsh
       if: ${{ success() && env.DisablePullRequest == 'false' }}
