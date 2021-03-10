@@ -34,7 +34,7 @@ steps:
     $VerbosePreference = "continue"
 
     # Set the module folder env variable so that our custom functions are auto-loaded
-    $env:PSModulePath = $env:PSModulePath + "$([System.IO.Path]::PathSeparator)$(Build.SourcesDirectory)\build\PowershellRepository\"
+    $env:PSModulePath = $env:PSModulePath + "$([System.IO.Path]::PathSeparator)$(Build.SourcesDirectory)\build\PowershellModules\"
     # Ensure the env variable value flows through to the next tasks
     echo "##vso[task.setvariable variable=PSModulePath]$env:PSModulePath"    
 
@@ -74,38 +74,30 @@ steps:
     echo "##vso[task.setvariable variable=NugetExe]$nuget"
   displayName: "Get latest version of $(PackageName) from Nuget"
 
-- pwsh: |    
+- pwsh : |
     $branchName = "$(PackageName)-upgrade-$(CurrentVersion)-to-$(LatestVersion)"
-    $pr = Get-PullRequest -OwnerName $(GitHubOwner) -RepositoryName $(GitHubRepository) -AccessToken $(GitHubAccessToken) -BranchName $branchName
-    if ($pr) {
-        throw "A Pull Request already exists for this upgrade"
-    }
-    else {
-        Write-Verbose "An existing PR for this upgrade does not exist" -Verbose
-        # set the variables
-        echo "##vso[task.setvariable variable=BranchName]$branchName"
-    }
-  condition: and(succeeded(), eq(variables.HasUpgrade, 'True'))
-  displayName: "Check for existing PR"
 
-- pwsh : |     
     git show-ref --verify --quiet `"refs/heads/$(BranchName)`"
     if ($?){
-        Write-Verbose "Branch $(BranchName) already exists, updating to branch" -Verbose
-        git checkout "$(BranchName)"
+        Write-Verbose "Branch $branchName already exists, updating to branch" -Verbose
+        git checkout "$branchName"
     }
     else {
-        git branch "$(BranchName)"
-        git checkout "$(BranchName)"
-    }    
-  condition: and(succeeded(), eq(variables.DisableUpgradeStep, false))
+        git branch "$branchName"
+        git checkout "$branchName"
+    }
+
+    # set the variables
+    echo "##vso[task.setvariable variable=BranchName]$branchName"
+  condition: and(succeeded(), eq(variables.HasUpgrade, 'True'), eq(variables.DisableUpgradeStep, false))
   displayName: 'Creating branch'
 
 - pwsh : |
     $repoRoot = Get-Item $(Build.SourcesDirectory)
-    Update-NugetPackage -PackageName $(PackageName) -PackageVersion $(LatestVersion) -ProjectFile $(ProjectFile) -RootGitDirectory $($repoRoot.FullName) -NugetExe $(NugetExe)
+    # don't specify explicit version, have nuget just update to the latest compatible
+    Update-NugetPackage -PackageName $(PackageName) -ProjectFile $(ProjectFile) -RootGitDirectory $($repoRoot.FullName) -NugetExe $(NugetExe)
   condition: and(succeeded(), eq(variables.DisableUpgradeStep, false))
-  displayName: 'Upgrading project'
+  displayName: 'Upgrading project to $(LatestVersion)'
 
 - task: MSBuild@1  
   inputs:
@@ -115,16 +107,38 @@ steps:
   displayName: 'Building project'
 
 - pwsh : |
-    $message = "Updated files for the $(PackageName) from $(CurrentVersion) to $(LatestVersion)"
+    $actualVersion = Get-ConfigPackageVersion -PackageFile $(PackageFile) -PackageName $(PackageName)
+    $branchName = "$(PackageName)-upgrade-$(CurrentVersion)-to-$actualVersion"
+    # rename the branch to the actual version
+    git branch -m $branchName
+    
+    # set the variables
+    echo "##vso[task.setvariable variable=ActualVersion]$actualVersion"
+    echo "##vso[task.setvariable variable=BranchName]$branchName"  
+  displayName: 'Renaming Branch'
+
+- pwsh : |    
+    $message = "Updated files for the $(PackageName) from $(CurrentVersion) to $actualVersion (Attempted $(LatestVersion) )"
     git add -A
     git -c "user.name=$(GitBotUser)" -c "user.email=$(GitBotEmail)" commit -am "$message" --author "$(GitBotUser) <$(GitBotEmail)>"
   condition: and(succeeded(), eq(variables.DisableCommit, false))
   displayName: 'Committing changes'
 
+- pwsh: |
+    $ghRepoParts = "${{ github.repository }}".Split("/")
+    $pr = Get-PullRequest -OwnerName $ghRepoParts[0] -RepositoryName $ghRepoParts[1] -AccessToken ${{ secrets.GITHUB_TOKEN }} -BranchName ${{ env.BranchName }}
+    if ($pr) {
+        throw "A Pull Request already exists for this upgrade"
+    }
+    else {
+        Write-Verbose "An existing PR for this upgrade does not exist" -Verbose            
+    }
+  displayName: "Check for existing PR"
+
 - pwsh : |    
     git -c "user.name=$(GitBotUser)" -c "user.email=$(GitBotEmail)" push -u origin "$(BranchName)"
   condition: and(succeeded(), eq(variables.DisablePush, false))
-  displayName: 'Push changes'
+  displayName: 'Push changes to $(BranchName)'
 
 - pwsh : |    
     $pr = New-PullRequest -OwnerName $(GitHubOwner) -RepositoryName $(GitHubRepository) -AccessToken $(GitHubAccessToken) -SourceVersion $(CurrentVersion) -PackageVersion $(LatestVersion) -PackageName $(PackageName) -BranchName $(BranchName)

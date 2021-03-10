@@ -37,6 +37,36 @@ function Get-CurrentPackageVersion
     return $packageVersion.ToString()
 }
 
+function Get-ConfigPackageVersion
+{
+    [CmdletBinding(DefaultParameterSetName = 'None')]
+    param(        
+        [Parameter(Mandatory)]
+        [string] $PackageFile,
+
+        [Parameter(Mandatory)]
+        [string] $PackageName
+    )
+
+    Add-Type -AssemblyName System.Xml.Linq
+
+    $file = Get-Item $PackageFile
+    if ($file.Exists -eq $false){
+        throw "The package file does not exist $PackageFile"
+    }
+    
+    $reader = New-Object System.Xml.XmlTextReader($file.FullName)
+    $xml = [System.Xml.Linq.XDocument]::Load($reader)
+    $reader.Dispose()
+
+    $xpath = "string(//package[@id='$PackageName']/@version)"
+    $packageVersion = [string][System.Xml.XPath.Extensions]::XPathEvaluate($xml, $xpath);    
+    
+    Write-Verbose "$PackageName version = $packageVersion"
+
+    return $packageVersion.ToString()
+}
+
 function Get-PullRequest
 {
     [CmdletBinding(DefaultParameterSetName = 'None')]

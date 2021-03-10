@@ -79,42 +79,32 @@ jobs:
         echo ("LatestVersion=" + $latest) >> $Env:GITHUB_ENV
         echo ("HasUpgrade=" + $hasUpgrade) >> $Env:GITHUB_ENV
         echo ("NugetExe=" + $nuget) >> $Env:GITHUB_ENV
-      shell: pwsh
-    
-    - name: Check for existing PR
-      run: |
-        $ghRepoParts = "${{ github.repository }}".Split("/")
-        $branchName = "${{ env.PackageName }}-upgrade-${{ env.CurrentVersion }}-to-${{ env.LatestVersion }}"
-        $pr = Get-PullRequest -OwnerName $ghRepoParts[0] -RepositoryName $ghRepoParts[1] -AccessToken ${{ secrets.GITHUB_TOKEN }} -BranchName $branchName
-        if ($pr) {
-            throw "A Pull Request already exists for this upgrade"
-        }
-        else {
-            Write-Verbose "An existing PR for this upgrade does not exist" -Verbose
-            # set the variables
-            echo ("BranchName=" + $branchName) >> $Env:GITHUB_ENV
-        }
-      if: ${{ success() && env.HasUpgrade == 'True' }}
-      shell: pwsh
+      shell: pwsh    
     
     - name: Creating branch
       run: |
-        git show-ref --verify --quiet `"refs/heads/${{ env.BranchName }}`"
+        $branchName = "${{ env.PackageName }}-upgrade-${{ env.CurrentVersion }}-to-${{ env.LatestVersion }}"        
+
+        git show-ref --verify --quiet `"refs/heads/$branchName`"
         if ($?){
-            Write-Verbose "Branch ${{ env.BranchName }} already exists, updating to branch" -Verbose
-            git checkout "${{ env.BranchName }}"
+            Write-Verbose "Branch $branchName already exists, updating to branch" -Verbose
+            git checkout "$branchName"
         }
         else {
-            git branch "${{ env.BranchName }}"
-            git checkout "${{ env.BranchName }}"
-        }    
+            git branch "$branchName"
+            git checkout "$branchName"
+        }
+
+        # set the variables
+        echo ("BranchName=" + $branchName) >> $Env:GITHUB_ENV
       shell: pwsh
-      if: ${{ success() && env.DisableUpgradeStep == 'false' }}
+      if: ${{ success() && env.HasUpgrade == 'True' && env.DisableUpgradeStep == 'false' }}
       
     - name: Upgrading project
       run: |
         $repoRoot = Get-Item "${{ github.workspace }}"
-        Update-NugetPackage -PackageName ${{ env.PackageName }} -PackageVersion ${{ env.LatestVersion }} -ProjectFile ${{ env.ProjectFile }} -RootGitDirectory $($repoRoot.FullName) -NugetExe (Get-Command nuget).Source
+        # don't specify explicit version, have nuget just update to the latest compatible
+        Update-NugetPackage -PackageName ${{ env.PackageName }} -ProjectFile ${{ env.ProjectFile }} -RootGitDirectory $($repoRoot.FullName) -NugetExe (Get-Command nuget).Source
       shell: pwsh
       if: ${{ success() && env.DisableUpgradeStep == 'false' }}      
 
@@ -122,14 +112,38 @@ jobs:
       working-directory: ${{env.GITHUB_WORKSPACE}}
       run: msbuild ${{ env.ProjectFile }}
       if: ${{ success() && env.DisableUpgradeStep == 'false' }}
+
+    - name: Renaming Branch
+      run: |
+        $actualVersion = Get-ConfigPackageVersion -PackageFile ${{ env.PackageFile }} -PackageName ${{ env.PackageName }}
+        $branchName = "${{ env.PackageName }}-upgrade-${{ env.CurrentVersion }}-to-$actualVersion"
+        # rename the branch to the actual version
+        git branch -m $branchName
+        
+        # set the variables
+        echo ("ActualVersion=" + $actualVersion) >> $Env:GITHUB_ENV
+        echo ("BranchName=" + $branchName) >> $Env:GITHUB_ENV
+      shell: pwsh
     
     - name: Committing changes
-      run: |
+      run: |        
         $message = "Updated files for the ${{ env.PackageName }} from ${{ env.CurrentVersion }} to ${{ env.LatestVersion }}"
         git add -A
         git -c "user.name=${{ env.GitBotUser }}" -c "user.email=${{ env.GitBotEmail }}" commit -am "$message" --author "${{ env.GitBotUser }} <${{ env.GitBotEmail }}>"
       shell: pwsh
       if: ${{ success() && env.DisableCommit == 'false' }}
+
+    - name: Check for existing PR
+      run: |
+        $ghRepoParts = "${{ github.repository }}".Split("/")
+        $pr = Get-PullRequest -OwnerName $ghRepoParts[0] -RepositoryName $ghRepoParts[1] -AccessToken ${{ secrets.GITHUB_TOKEN }} -BranchName ${{ env.BranchName }}
+        if ($pr) {
+            throw "A Pull Request already exists for this upgrade"
+        }
+        else {
+            Write-Verbose "An existing PR for this upgrade does not exist" -Verbose            
+        }
+      shell: pwsh
 
     - name: Push Changes
       run : |
