@@ -66,11 +66,11 @@ runs:
     - name: "Get latest version of ${{ inputs.package-name }} from GitHub"
       run: |
         $ghRepoParts = "${{ github.repository }}".Split("/")
-        $currentVersion = Get-CurrentPackageVersion -OwnerName $ghRepoParts[0] -RepositoryName $ghRepoParts[1] -AccessToken ${{ inputs.github_token }} -PackageFile ${{ inputs.package-file }} -PackageName ${{ env.PackageName }}
+        $currentVersion = Get-CurrentPackageVersion -OwnerName $ghRepoParts[0] -RepositoryName $ghRepoParts[1] -AccessToken ${{ inputs.github_token }} -PackageFile ${{ inputs.package-file }} -PackageName ${{ inputs.package-name }}
         if (!$currentVersion){
             Throw "Could not determine package version, cannot continue"
         }
-        Write-Verbose "Latest local version of ${{ env.PackageName }} is $currentVersion" -Verbose
+        Write-Verbose "Latest local version of ${{ inputs.package-name }} is $currentVersion" -Verbose
         # set the variables
         echo ("CurrentVersion=" + $currentVersion) >> $Env:GITHUB_ENV
       shell: pwsh
@@ -189,5 +189,5 @@ runs:
         }
 
         $ghRepoParts = "${{ github.repository }}".Split("/")
-        $pr = New-PullRequest -OwnerName $ghRepoParts[0] -RepositoryName $ghRepoParts[1] -AccessToken ${{ inputs.github_token }} -SourceVersion ${{ env.CurrentVersion }} -PackageVersion ${{ env.ActualVersion }} -PackageName ${{ env.PackageName }} -BranchName ${{ env.BranchName }}
+        $pr = New-PullRequest -OwnerName $ghRepoParts[0] -RepositoryName $ghRepoParts[1] -AccessToken ${{ inputs.github_token }} -SourceVersion ${{ env.CurrentVersion }} -PackageVersion ${{ env.ActualVersion }} -PackageName ${{ inputs.package-name }} -BranchName ${{ env.BranchName }}
       shell: pwsh
