@@ -2,34 +2,37 @@ name: 'Nuget Auto Upgrader'
 author: Shannon Deminick
 description: 'Auto upgrade nuget packages in your projects'
 inputs:
-  ProjectFile:
+  github_token:
+    description: 'A GitHub token that has access to this repository to push and create a PR. Typically just pass in ${{ secrets.GITHUB_TOKEN }}'
+    required: true
+  project-file:
     description: 'The relative path of your project file to upgrade (i.e. src/Shazwazza.Web/Shazwazza.Web.csproj)'
     required: true
-  PackageFile:
+  package-file:
     description: 'The relative path of your packages.config file for your project (i.e. src/Shazwazza.Web/packages.config)'
     required: true
-  PackageName:
+  package-name:
     description: 'The Nuget package name you want upgraded'
     required: true
-  GitBotUser:
+  git-bot-user:
     description: 'The bot user name who will author the commit and PR (i.e. Friendly Upgrade Bot)'
     required: true
-  GitBotEmail:
+  git-bot-email:
     description: 'The bot email will author the commit and PR (i.e. upgrader@example.com)'
     required: true
-  DisableUpgradeStep:
+  disable-upgrade-step:
     description: 'Can be used for testing to do a dry run and will not actually perform the upgrade. Set to "true" or "false".'
     required: false
     default: "false"
-  DisableCommit:
+  disable-commit:
     description: 'Can be used for testing. If "true" will run the upgrade but not commit or continue further. Set to "true" or "false".'
     required: false
     default: "false"
-  DisablePush:
+  disable-push:
     description: 'Can be used for testing. If "true" will run the upgrade and commit but not push changes or continue further. Set to "true" or "false".'
     required: false
     default: "false"
-  DisablePullRequest:
+  disable-pull-request:
     description: 'Can be used for testing. If "true" will run the upgrade, commit and push but will not create the PR. Set to "true" or "false".'
     required: false
     default: "false"
@@ -60,10 +63,10 @@ runs:
         Set-GitHubConfiguration -LogPath $logPath -DisableLogging:$false
       shell: pwsh
       
-    - name: "Get latest version of ${{ inputs.PackageName }} from GitHub"
+    - name: "Get latest version of ${{ inputs.package-name }} from GitHub"
       run: |
         $ghRepoParts = "${{ github.repository }}".Split("/")
-        $currentVersion = Get-CurrentPackageVersion -OwnerName $ghRepoParts[0] -RepositoryName $ghRepoParts[1] -AccessToken ${{ secrets.GITHUB_TOKEN }} -PackageFile ${{ inputs.PackageFile }} -PackageName ${{ env.PackageName }}
+        $currentVersion = Get-CurrentPackageVersion -OwnerName $ghRepoParts[0] -RepositoryName $ghRepoParts[1] -AccessToken ${{ inputs.github_token }} -PackageFile ${{ inputs.package-file }} -PackageName ${{ env.PackageName }}
         if (!$currentVersion){
             Throw "Could not determine package version, cannot continue"
         }
@@ -72,17 +75,17 @@ runs:
         echo ("CurrentVersion=" + $currentVersion) >> $Env:GITHUB_ENV
       shell: pwsh
     
-    - name: Get latest version of ${{ inputs.PackageName }} from Nuget
+    - name: Get latest version of ${{ inputs.package-name }} from Nuget
       run: |
         #$nuget = Get-NugetExe -DestinationFolder $Env:AGENT_TEMPDIRECTORY
-        #$latest = Get-LatestPackageVersion -PackageName ${{ inputs.PackageName }} -NugetExe $nuget
+        #$latest = Get-LatestPackageVersion -PackageName ${{ inputs.package-name }} -NugetExe $nuget
         # TRY JUST PASSING IN THE DEFAULT nuget
-        $latest = Get-LatestPackageVersion -PackageName ${{ inputs.PackageName }} -NugetExe (Get-Command nuget).Source
+        $latest = Get-LatestPackageVersion -PackageName ${{ inputs.package-name }} -NugetExe (Get-Command nuget).Source
         
         if (!$latest){
             Throw "Could not determine package version, cannot continue"
         }
-        Write-Verbose "Latest nuget version of ${{ inputs.PackageName }} is $latest" -Verbose
+        Write-Verbose "Latest nuget version of ${{ inputs.package-name }} is $latest" -Verbose
 
         # Compare versions
         $hasUpgrade = Get-UpgradeAvailable -SourceVersion ${{ env.CurrentVersion }} -DestVersion $latest
@@ -97,7 +100,15 @@ runs:
     
     - name: Creating branch
       run: |
-        $branchName = "${{ inputs.PackageName }}-upgrade-${{ env.CurrentVersion }}-to-${{ env.LatestVersion }}"        
+        if ($Env.HasUpgrade -ne "True") {
+          Throw "No upgrade detected"
+        }
+
+        if ($Env.INPUT_DISABLE_UPGRADE_STEP -eq "true") {
+          Throw "Upgrade step is disabled. Quitting."
+        }
+
+        $branchName = "${{ inputs.package-name }}-upgrade-${{ env.CurrentVersion }}-to-${{ env.LatestVersion }}"        
 
         git show-ref --verify --quiet `"refs/heads/$branchName`"
         if ($?){
@@ -111,26 +122,25 @@ runs:
 
         # set the variables
         echo ("BranchName=" + $branchName) >> $Env:GITHUB_ENV
+        # echo ("Success=" + "True") >> $Env:GITHUB_ENV
       shell: pwsh
-      if: ${{ success() && env.HasUpgrade == 'True' && inputs.DisableUpgradeStep == 'false' }}
       
     - name: Upgrading project
       run: |
         $repoRoot = Get-Item "${{ github.workspace }}"
         # don't specify explicit version, have nuget just update to the latest compatible
-        Update-NugetPackage -PackageName ${{ inputs.PackageName }} -ProjectFile ${{ inputs.ProjectFile }} -RootGitDirectory $($repoRoot.FullName) -NugetExe (Get-Command nuget).Source
+        Update-NugetPackage -PackageName ${{ inputs.package-name }} -ProjectFile ${{ inputs.project-file}} -RootGitDirectory $($repoRoot.FullName) -NugetExe (Get-Command nuget).Source
       shell: pwsh
-      if: ${{ success() && inputs.DisableUpgradeStep == 'false' }}      
 
     - name: Building project
-      working-directory: ${{env.GITHUB_WORKSPACE}}
-      run: msbuild ${{ inputs.ProjectFile }}
-      if: ${{ success() && inputs.DisableUpgradeStep == 'false' }}
+      working-directory: ${{ github.workspace }}
+      run: & msbuild ${{ inputs.project-file}}
+      shell: pwsh
 
     - name: Renaming Branch
       run: |
-        $actualVersion = Get-ConfigPackageVersion -PackageFile ${{ inputs.PackageFile }} -PackageName ${{ inputs.PackageName }}
-        $branchName = "${{ inputs.PackageName }}-upgrade-${{ env.CurrentVersion }}-to-$actualVersion"
+        $actualVersion = Get-ConfigPackageVersion -PackageFile ${{ inputs.package-file }} -PackageName ${{ inputs.package-name }}
+        $branchName = "${{ inputs.package-name }}-upgrade-${{ env.CurrentVersion }}-to-$actualVersion"
         # rename the branch to the actual version
         git branch -m $branchName
         
@@ -141,16 +151,19 @@ runs:
     
     - name: Committing changes
       run: |
-        $message = "Updated files for the ${{ inputs.PackageName }} from ${{ env.CurrentVersion }} to ${{ env.ActualVersion }} (Attempted ${{ env.LatestVersion }} )"
+        if ($Env.INPUT_DISABLE_COMMIT -eq "true") {
+          Throw "Commit step is disabled. Quitting."
+        }
+
+        $message = "Updated files for the ${{ inputs.package-name }} from ${{ env.CurrentVersion }} to ${{ env.ActualVersion }} (Attempted ${{ env.LatestVersion }} )"
         git add -A
-        git -c "user.name=${{ inputs.GitBotUser }}" -c "user.email=${{ inputs.GitBotEmail }}" commit -am "$message" --author "${{ inputs.GitBotUser }} <${{ env.GitBotEmail }}>"
+        git -c "user.name=${{ inputs.git-bot-user }}" -c "user.email=${{ inputs.git-bot-email }}" commit -am "$message" --author "${{ inputs.git-bot-user }} <${{ env.GitBotEmail }}>"
       shell: pwsh
-      if: ${{ success() && inputs.DisableCommit == 'false' }}
 
     - name: Check for existing PR
       run: |
         $ghRepoParts = "${{ github.repository }}".Split("/")
-        $pr = Get-PullRequest -OwnerName $ghRepoParts[0] -RepositoryName $ghRepoParts[1] -AccessToken ${{ secrets.GITHUB_TOKEN }} -BranchName ${{ env.BranchName }}
+        $pr = Get-PullRequest -OwnerName $ghRepoParts[0] -RepositoryName $ghRepoParts[1] -AccessToken ${{ inputs.github_token }} -BranchName ${{ env.BranchName }}
         if ($pr) {
             throw "A Pull Request already exists for this upgrade"
         }
@@ -161,13 +174,19 @@ runs:
 
     - name: Push Changes
       run : |
-        git -c "user.name=${{ inputs.GitBotUser }}" -c "user.email=${{ inputs.GitBotEmail }}" push -u origin "${{ env.BranchName }}"
+        if ($Env.INPUT_DISABLE_PUSH -eq "true") {
+          Throw "Commit step is disabled. Quitting."
+        }
+
+        git -c "user.name=${{ inputs.git-bot-user }}" -c "user.email=${{ inputs.git-bot-email }}" push -u origin "${{ env.BranchName }}"
       shell: pwsh
-      if: ${{ success() && inputs.DisablePush == 'false' }}
       
     - name: Creating pull request
       run : |
+        if ($Env.INPUT_DISABLE_PULL_REQUEST -eq "true") {
+          Throw "Commit step is disabled. Quitting."
+        }
+
         $ghRepoParts = "${{ github.repository }}".Split("/")
-        $pr = New-PullRequest -OwnerName $ghRepoParts[0] -RepositoryName $ghRepoParts[1] -AccessToken ${{ secrets.GITHUB_TOKEN }} -SourceVersion ${{ env.CurrentVersion }} -PackageVersion ${{ env.ActualVersion }} -PackageName ${{ env.PackageName }} -BranchName ${{ env.BranchName }}
+        $pr = New-PullRequest -OwnerName $ghRepoParts[0] -RepositoryName $ghRepoParts[1] -AccessToken ${{ inputs.github_token }} -SourceVersion ${{ env.CurrentVersion }} -PackageVersion ${{ env.ActualVersion }} -PackageName ${{ env.PackageName }} -BranchName ${{ env.BranchName }}
       shell: pwsh
-      if: ${{ success() && inputs.DisablePullRequest == 'false' }}
