@@ -50,7 +50,7 @@ runs:
       run: |
         $VerbosePreference = ($Env:INPUT_VERBOSE -eq "true") ? "Continue" : "SilentlyContinue"
 
-        echo "::debug::Configuring local PowerShell modules"
+        echo "Configuring local PowerShell modules"
 
         # Create temp folder
         $tempFolder = "$Env:GITHUB_WORKSPACE\build\_temp"
@@ -61,7 +61,7 @@ runs:
         # Ensure the env variable value flows through to the next tasks
         echo ("PSModulePath=" + $Env:PSModulePath) >> $Env:GITHUB_ENV
         
-        echo "::debug::Installing PowerShellForGitHub module"
+        echo "Installing PowerShellForGitHub module"
 
         Install-Module -Name PowerShellForGitHub -Force
         # Enable logging to a relative file
@@ -81,7 +81,7 @@ runs:
           exit 1
         }
 
-        echo "::debug::Latest local version of ${{ inputs.package-name }} is $currentVersion"
+        echo "Latest local version of ${{ inputs.package-name }} is $currentVersion"
 
         # set the variables
         echo ("CurrentVersion=" + $currentVersion) >> $Env:GITHUB_ENV
@@ -101,12 +101,12 @@ runs:
           exit 1
         }
 
-        echo "::debug::Latest nuget version of ${{ inputs.package-name }} is $latest"
+        echo "Latest nuget version of ${{ inputs.package-name }} is $latest"
 
         # Compare versions
         $hasUpgrade = Get-UpgradeAvailable -SourceVersion ${{ env.CurrentVersion }} -DestVersion $latest
         if ($hasUpgrade) {
-          echo "::debug::An upgrade is available!"
+          echo "An upgrade is available!"
         }
 
         # set the variables
@@ -131,7 +131,7 @@ runs:
 
         git show-ref --verify --quiet `"refs/heads/$branchName`"
         if ($?){
-          echo "::debug::Branch $branchName already exists, updating to branch"
+          echo "Branch $branchName already exists, updating to branch"
           git checkout "$branchName"
         }
         else {
@@ -147,18 +147,21 @@ runs:
       run: |
         $VerbosePreference = ($Env:INPUT_VERBOSE -eq "true") ? "Continue" : "SilentlyContinue"
         
-        echo "::debug::Running Nuget update for package ${{ inputs.package-name }}..."
+        echo "::group::Running Nuget update for package ${{ inputs.package-name }}"
         
         $repoRoot = Get-Item "${{ github.workspace }}"
         # don't specify explicit version, have nuget just update to the latest compatible
         Update-NugetPackage -PackageName ${{ inputs.package-name }} -ProjectFile ${{ inputs.project-file}} -RootGitDirectory $($repoRoot.FullName) -NugetExe (Get-Command nuget).Source
+
+        echo "::endgroup::"
       shell: pwsh
 
     - name: Building project
       working-directory: ${{ github.workspace }}
       run: |
-        echo "::debug::Building the project ${{ inputs.project-file}}"
+        echo "::group::Building the project ${{ inputs.project-file}}"
         & msbuild ${{ inputs.project-file}}
+        echo "::endgroup::"
       shell: pwsh
 
     - name: Renaming Branch
@@ -167,7 +170,7 @@ runs:
         $branchName = "${{ inputs.package-name }}-upgrade-${{ env.CurrentVersion }}-to-$actualVersion"
         
         if ($actualVersion -ne $Env:LatestVersion) {
-          echo "::debug::Upgrade successful but could not auto upgrade to the latest $Env:LatestVersion version, Nuget could only resolve dependencies for version $actualVersion"
+          echo "Upgrade successful but could not auto upgrade to the latest $Env:LatestVersion version, Nuget could only resolve dependencies for version $actualVersion"
         }
 
         # rename the branch to the actual version
@@ -200,7 +203,7 @@ runs:
           exit 1
         }
         else {
-          echo "::debug::An existing PR for this upgrade does not exist"
+          echo "An existing PR for this upgrade does not exist"
         }
       shell: pwsh
 
@@ -217,7 +220,7 @@ runs:
     - name: Creating pull request
       run : |
         $VerbosePreference = ($Env:INPUT_VERBOSE -eq "true") ? "Continue" : "SilentlyContinue"
-        
+
         if ($Env:INPUT_DISABLE_PULL_REQUEST -eq "true") {
           echo "::warning::Pull request step is disabled. Quitting."
           exit 1
