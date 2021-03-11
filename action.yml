@@ -100,13 +100,13 @@ runs:
     
     - name: Creating branch
       run: |
-        Write-Verbose "HasUpgrade? $Env.HasUpgrade" -Verbose
+        Write-Verbose "HasUpgrade? $Env:HasUpgrade" -Verbose
         
-        if ($Env.HasUpgrade -ne "True") {
+        if ($Env:HasUpgrade -ne "True") {
           Throw "No upgrade detected"
         }
 
-        if ($Env.INPUT_DISABLE_UPGRADE_STEP -eq "true") {
+        if ($Env:INPUT_DISABLE_UPGRADE_STEP -eq "true") {
           Throw "Upgrade step is disabled. Quitting."
         }
 
@@ -154,7 +154,7 @@ runs:
     
     - name: Committing changes
       run: |
-        if ($Env.INPUT_DISABLE_COMMIT -eq "true") {
+        if ($Env:INPUT_DISABLE_COMMIT -eq "true") {
           Throw "Commit step is disabled. Quitting."
         }
 
@@ -177,7 +177,7 @@ runs:
 
     - name: Push Changes
       run : |
-        if ($Env.INPUT_DISABLE_PUSH -eq "true") {
+        if ($Env:INPUT_DISABLE_PUSH -eq "true") {
           Throw "Commit step is disabled. Quitting."
         }
 
@@ -186,7 +186,7 @@ runs:
       
     - name: Creating pull request
       run : |
-        if ($Env.INPUT_DISABLE_PULL_REQUEST -eq "true") {
+        if ($Env:INPUT_DISABLE_PULL_REQUEST -eq "true") {
           Throw "Commit step is disabled. Quitting."
         }
 
