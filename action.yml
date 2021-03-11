@@ -61,6 +61,7 @@ runs:
         $logPath = "$tempFolder\PSForGHLog.txt"
         Write-Verbose "Logging to: $logPath"
         Set-GitHubConfiguration -LogPath $logPath -DisableLogging:$false
+        Set-GitHubConfiguration -SuppressTelemetryReminder
       shell: pwsh
       
     - name: "Get latest version of ${{ inputs.package-name }} from GitHub"
@@ -105,7 +106,7 @@ runs:
     - name: Creating branch
       run: |
         $VerbosePreference = "continue"
-        
+
         if ($Env:HasUpgrade -ne "True") {
           Throw "No upgrade detected"
         }

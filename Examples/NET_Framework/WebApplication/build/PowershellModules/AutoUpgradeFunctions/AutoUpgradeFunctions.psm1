@@ -253,7 +253,6 @@ function Invoke-NugetUpdate
         [Parameter(Mandatory)]
         [string] $PackageName,
 
-        [Parameter(Mandatory)]
         [string] $PackageVersion,
 
         [Parameter(Mandatory)]
