@@ -1,0 +1,173 @@
+name: 'Nuget Auto Upgrader'
+author: Shannon Deminick
+description: 'Auto upgrade nuget packages in your projects'
+inputs:
+  ProjectFile:
+    description: 'The relative path of your project file to upgrade (i.e. src/Shazwazza.Web/Shazwazza.Web.csproj)'
+    required: true
+  PackageFile:
+    description: 'The relative path of your packages.config file for your project (i.e. src/Shazwazza.Web/packages.config)'
+    required: true
+  PackageName:
+    description: 'The Nuget package name you want upgraded'
+    required: true
+  GitBotUser:
+    description: 'The bot user name who will author the commit and PR (i.e. Friendly Upgrade Bot)'
+    required: true
+  GitBotEmail:
+    description: 'The bot email will author the commit and PR (i.e. upgrader@example.com)'
+    required: true
+  DisableUpgradeStep:
+    description: 'Can be used for testing to do a dry run and will not actually perform the upgrade. Set to "true" or "false".'
+    required: false
+    default: "false"
+  DisableCommit:
+    description: 'Can be used for testing. If "true" will run the upgrade but not commit or continue further. Set to "true" or "false".'
+    required: false
+    default: "false"
+  DisablePush:
+    description: 'Can be used for testing. If "true" will run the upgrade and commit but not push changes or continue further. Set to "true" or "false".'
+    required: false
+    default: "false"
+  DisablePullRequest:
+    description: 'Can be used for testing. If "true" will run the upgrade, commit and push but will not create the PR. Set to "true" or "false".'
+    required: false
+    default: "false"
+outputs:
+  random-number:
+    description: "Random number"
+    value: ${{ steps.random-number-generator.outputs.random-id }}
+runs:
+  using: "composite"
+  steps:
+    - name: Installing modules and initializing
+      run: |
+        $VerbosePreference = "continue"
+
+        # Create temp folder
+        $tempFolder = "$Env:GITHUB_WORKSPACE\build\_temp"
+        New-Item -ItemType Directory -Force -Path $tempFolder
+
+        # Set the module folder env variable so that our custom functions are auto-loaded
+        $Env:PSModulePath = $Env:PSModulePath + "$([System.IO.Path]::PathSeparator)${{ github.action_path }}\Examples\NET_Framework\WebApplication\build\PowershellModules\"
+        # Ensure the env variable value flows through to the next tasks
+        echo ("PSModulePath=" + $Env:PSModulePath) >> $Env:GITHUB_ENV
+        
+        Install-Module -Name PowerShellForGitHub -Force
+        # Enable logging to a relative file
+        $logPath = "$tempFolder\PSForGHLog.txt"
+        Write-Verbose "Logging to: $logPath"
+        Set-GitHubConfiguration -LogPath $logPath -DisableLogging:$false
+      shell: pwsh
+      
+    - name: "Get latest version of ${{ inputs.PackageName }} from GitHub"
+      run: |
+        $ghRepoParts = "${{ github.repository }}".Split("/")
+        $currentVersion = Get-CurrentPackageVersion -OwnerName $ghRepoParts[0] -RepositoryName $ghRepoParts[1] -AccessToken ${{ secrets.GITHUB_TOKEN }} -PackageFile ${{ inputs.PackageFile }} -PackageName ${{ env.PackageName }}
+        if (!$currentVersion){
+            Throw "Could not determine package version, cannot continue"
+        }
+        Write-Verbose "Latest local version of ${{ env.PackageName }} is $currentVersion" -Verbose
+        # set the variables
+        echo ("CurrentVersion=" + $currentVersion) >> $Env:GITHUB_ENV
+      shell: pwsh
+    
+    - name: Get latest version of ${{ inputs.PackageName }} from Nuget
+      run: |
+        #$nuget = Get-NugetExe -DestinationFolder $Env:AGENT_TEMPDIRECTORY
+        #$latest = Get-LatestPackageVersion -PackageName ${{ inputs.PackageName }} -NugetExe $nuget
+        # TRY JUST PASSING IN THE DEFAULT nuget
+        $latest = Get-LatestPackageVersion -PackageName ${{ inputs.PackageName }} -NugetExe (Get-Command nuget).Source
+        
+        if (!$latest){
+            Throw "Could not determine package version, cannot continue"
+        }
+        Write-Verbose "Latest nuget version of ${{ inputs.PackageName }} is $latest" -Verbose
+
+        # Compare versions
+        $hasUpgrade = Get-UpgradeAvailable -SourceVersion ${{ env.CurrentVersion }} -DestVersion $latest
+        if ($hasUpgrade) {
+            Write-Verbose "An upgrade is available!" -Verbose
+        }
+        # set the variables
+        echo ("LatestVersion=" + $latest) >> $Env:GITHUB_ENV
+        echo ("HasUpgrade=" + $hasUpgrade) >> $Env:GITHUB_ENV
+        echo ("NugetExe=" + $nuget) >> $Env:GITHUB_ENV
+      shell: pwsh    
+    
+    - name: Creating branch
+      run: |
+        $branchName = "${{ inputs.PackageName }}-upgrade-${{ env.CurrentVersion }}-to-${{ env.LatestVersion }}"        
+
+        git show-ref --verify --quiet `"refs/heads/$branchName`"
+        if ($?){
+            Write-Verbose "Branch $branchName already exists, updating to branch" -Verbose
+            git checkout "$branchName"
+        }
+        else {
+            git branch "$branchName"
+            git checkout "$branchName"
+        }
+
+        # set the variables
+        echo ("BranchName=" + $branchName) >> $Env:GITHUB_ENV
+      shell: pwsh
+      if: ${{ success() && env.HasUpgrade == 'True' && inputs.DisableUpgradeStep == 'false' }}
+      
+    - name: Upgrading project
+      run: |
+        $repoRoot = Get-Item "${{ github.workspace }}"
+        # don't specify explicit version, have nuget just update to the latest compatible
+        Update-NugetPackage -PackageName ${{ inputs.PackageName }} -ProjectFile ${{ inputs.ProjectFile }} -RootGitDirectory $($repoRoot.FullName) -NugetExe (Get-Command nuget).Source
+      shell: pwsh
+      if: ${{ success() && inputs.DisableUpgradeStep == 'false' }}      
+
+    - name: Building project
+      working-directory: ${{env.GITHUB_WORKSPACE}}
+      run: msbuild ${{ inputs.ProjectFile }}
+      if: ${{ success() && inputs.DisableUpgradeStep == 'false' }}
+
+    - name: Renaming Branch
+      run: |
+        $actualVersion = Get-ConfigPackageVersion -PackageFile ${{ inputs.PackageFile }} -PackageName ${{ inputs.PackageName }}
+        $branchName = "${{ inputs.PackageName }}-upgrade-${{ env.CurrentVersion }}-to-$actualVersion"
+        # rename the branch to the actual version
+        git branch -m $branchName
+        
+        # set the variables
+        echo ("ActualVersion=" + $actualVersion) >> $Env:GITHUB_ENV
+        echo ("BranchName=" + $branchName) >> $Env:GITHUB_ENV
+      shell: pwsh
+    
+    - name: Committing changes
+      run: |
+        $message = "Updated files for the ${{ inputs.PackageName }} from ${{ env.CurrentVersion }} to ${{ env.ActualVersion }} (Attempted ${{ env.LatestVersion }} )"
+        git add -A
+        git -c "user.name=${{ inputs.GitBotUser }}" -c "user.email=${{ inputs.GitBotEmail }}" commit -am "$message" --author "${{ inputs.GitBotUser }} <${{ env.GitBotEmail }}>"
+      shell: pwsh
+      if: ${{ success() && inputs.DisableCommit == 'false' }}
+
+    - name: Check for existing PR
+      run: |
+        $ghRepoParts = "${{ github.repository }}".Split("/")
+        $pr = Get-PullRequest -OwnerName $ghRepoParts[0] -RepositoryName $ghRepoParts[1] -AccessToken ${{ secrets.GITHUB_TOKEN }} -BranchName ${{ env.BranchName }}
+        if ($pr) {
+            throw "A Pull Request already exists for this upgrade"
+        }
+        else {
+            Write-Verbose "An existing PR for this upgrade does not exist" -Verbose            
+        }
+      shell: pwsh
+
+    - name: Push Changes
+      run : |
+        git -c "user.name=${{ inputs.GitBotUser }}" -c "user.email=${{ inputs.GitBotEmail }}" push -u origin "${{ env.BranchName }}"
+      shell: pwsh
+      if: ${{ success() && inputs.DisablePush == 'false' }}
+      
+    - name: Creating pull request
+      run : |
+        $ghRepoParts = "${{ github.repository }}".Split("/")
+        $pr = New-PullRequest -OwnerName $ghRepoParts[0] -RepositoryName $ghRepoParts[1] -AccessToken ${{ secrets.GITHUB_TOKEN }} -SourceVersion ${{ env.CurrentVersion }} -PackageVersion ${{ env.ActualVersion }} -PackageName ${{ env.PackageName }} -BranchName ${{ env.BranchName }}
+      shell: pwsh
+      if: ${{ success() && inputs.DisablePullRequest == 'false' }}
