@@ -176,8 +176,6 @@ function Update-NugetPackage
         throw "The project file does not exist $ProjectFile"
     }
 
-    Write-Verbose "Running Nuget restore/update for package $PackageName ..."
-
     if ($MSBuildPath) {
         $MSBuildPath = "$($MSBuildPath.TrimEnd('\\'))"
     }

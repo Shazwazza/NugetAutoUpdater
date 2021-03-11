@@ -1,5 +1,8 @@
 name: 'Nuget Auto Upgrader'
 author: Shannon Deminick
+branding:
+  icon: 'sunrise'
+  color: 'blue'
 description: 'Auto upgrade nuget packages in your projects'
 inputs:
   github-token:
@@ -36,16 +39,18 @@ inputs:
     description: 'Can be used for testing. If "true" will run the upgrade, commit and push but will not create the PR. Set to "true" or "false".'
     required: false
     default: "false"
-outputs:
-  random-number:
-    description: "Random number"
-    value: ${{ steps.random-number-generator.outputs.random-id }}
+  verbose:
+    description: 'Set to "true" to output verbose logging'
+    required: false
+    default: "false"
 runs:
   using: "composite"
   steps:
     - name: Installing modules and initializing
       run: |
-        # $VerbosePreference = "continue"
+        $VerbosePreference = ($Env:INPUT_VERBOSE -eq "true") ? "Continue" : "SilentlyContinue"
+
+        echo "::debug::Configuring local PowerShell modules"
 
         # Create temp folder
         $tempFolder = "$Env:GITHUB_WORKSPACE\build\_temp"
@@ -56,31 +61,35 @@ runs:
         # Ensure the env variable value flows through to the next tasks
         echo ("PSModulePath=" + $Env:PSModulePath) >> $Env:GITHUB_ENV
         
+        echo "::debug::Installing PowerShellForGitHub module"
+
         Install-Module -Name PowerShellForGitHub -Force
         # Enable logging to a relative file
         $logPath = "$tempFolder\PSForGHLog.txt"
-        Write-Verbose "Logging to: $logPath"
         Set-GitHubConfiguration -LogPath $logPath -DisableLogging:$false
         Set-GitHubConfiguration -SuppressTelemetryReminder
       shell: pwsh
       
     - name: "Get latest version of ${{ inputs.package-name }} from GitHub"
       run: |
-        $VerbosePreference = "continue"
+        $VerbosePreference = ($Env:INPUT_VERBOSE -eq "true") ? "Continue" : "SilentlyContinue"
 
         $ghRepoParts = "${{ github.repository }}".Split("/")
         $currentVersion = Get-CurrentPackageVersion -OwnerName $ghRepoParts[0] -RepositoryName $ghRepoParts[1] -AccessToken ${{ inputs.github-token }} -PackageFile ${{ inputs.package-file }} -PackageName ${{ inputs.package-name }}
         if (!$currentVersion){
-            Throw "Could not determine package version, cannot continue"
+          echo "::error::Could not determine package version, cannot continue"
+          exit 1
         }
-        Write-Verbose "Latest local version of ${{ inputs.package-name }} is $currentVersion"
+
+        echo "::debug::Latest local version of ${{ inputs.package-name }} is $currentVersion"
+
         # set the variables
         echo ("CurrentVersion=" + $currentVersion) >> $Env:GITHUB_ENV
       shell: pwsh
     
     - name: Get latest version of ${{ inputs.package-name }} from Nuget
       run: |
-        $VerbosePreference = "continue"
+        $VerbosePreference = ($Env:INPUT_VERBOSE -eq "true") ? "Continue" : "SilentlyContinue"
 
         #$nuget = Get-NugetExe -DestinationFolder $Env:AGENT_TEMPDIRECTORY
         #$latest = Get-LatestPackageVersion -PackageName ${{ inputs.package-name }} -NugetExe $nuget
@@ -88,15 +97,18 @@ runs:
         $latest = Get-LatestPackageVersion -PackageName ${{ inputs.package-name }} -NugetExe (Get-Command nuget).Source
         
         if (!$latest){
-            Throw "Could not determine package version, cannot continue"
+          echo "::error::Could not determine package version, cannot continue"
+          exit 1
         }
-        Write-Verbose "Latest nuget version of ${{ inputs.package-name }} is $latest"
+
+        echo "::debug::Latest nuget version of ${{ inputs.package-name }} is $latest"
 
         # Compare versions
         $hasUpgrade = Get-UpgradeAvailable -SourceVersion ${{ env.CurrentVersion }} -DestVersion $latest
         if ($hasUpgrade) {
-            Write-Verbose "An upgrade is available!"
+          echo "::debug::An upgrade is available!"
         }
+
         # set the variables
         echo ("LatestVersion=" + $latest) >> $Env:GITHUB_ENV
         echo ("HasUpgrade=" + $hasUpgrade) >> $Env:GITHUB_ENV
@@ -105,26 +117,26 @@ runs:
     
     - name: Creating branch
       run: |
-        $VerbosePreference = "continue"
-
         if ($Env:HasUpgrade -ne "True") {
-          Throw "No upgrade detected"
+          echo "::warning::No upgrade detected"
+          exit 1
         }
 
         if ($Env:INPUT_DISABLE_UPGRADE_STEP -eq "true") {
-          Throw "Upgrade step is disabled. Quitting."
+          echo "::warning::Upgrade step is disabled. Quitting."
+          exit 1
         }
 
         $branchName = "${{ inputs.package-name }}-upgrade-${{ env.CurrentVersion }}-to-${{ env.LatestVersion }}"        
 
         git show-ref --verify --quiet `"refs/heads/$branchName`"
         if ($?){
-            Write-Verbose "Branch $branchName already exists, updating to branch"
-            git checkout "$branchName"
+          echo "::debug::Branch $branchName already exists, updating to branch"
+          git checkout "$branchName"
         }
         else {
-            git branch "$branchName"
-            git checkout "$branchName"
+          git branch "$branchName"
+          git checkout "$branchName"
         }
 
         # set the variables
@@ -133,6 +145,10 @@ runs:
       
     - name: Upgrading project
       run: |
+        $VerbosePreference = ($Env:INPUT_VERBOSE -eq "true") ? "Continue" : "SilentlyContinue"
+        
+        echo "::debug::Running Nuget update for package ${{ inputs.package-name }}..."
+        
         $repoRoot = Get-Item "${{ github.workspace }}"
         # don't specify explicit version, have nuget just update to the latest compatible
         Update-NugetPackage -PackageName ${{ inputs.package-name }} -ProjectFile ${{ inputs.project-file}} -RootGitDirectory $($repoRoot.FullName) -NugetExe (Get-Command nuget).Source
@@ -141,6 +157,7 @@ runs:
     - name: Building project
       working-directory: ${{ github.workspace }}
       run: |
+        echo "::debug::Building the project ${{ inputs.project-file}}"
         & msbuild ${{ inputs.project-file}}
       shell: pwsh
 
@@ -148,6 +165,11 @@ runs:
       run: |
         $actualVersion = Get-ConfigPackageVersion -PackageFile ${{ inputs.package-file }} -PackageName ${{ inputs.package-name }}
         $branchName = "${{ inputs.package-name }}-upgrade-${{ env.CurrentVersion }}-to-$actualVersion"
+        
+        if ($actualVersion -ne $Env:LatestVersion) {
+          echo "::debug::Upgrade successful but could not auto upgrade to the latest $Env:LatestVersion version, Nuget could only resolve dependencies for version $actualVersion"
+        }
+
         # rename the branch to the actual version
         git branch -m $branchName
         
@@ -159,7 +181,8 @@ runs:
     - name: Committing changes
       run: |
         if ($Env:INPUT_DISABLE_COMMIT -eq "true") {
-          Throw "Commit step is disabled. Quitting."
+          echo "::warning::Commit step is disabled. Quitting."
+          exit 1
         }
 
         $message = "Updated files for the ${{ inputs.package-name }} from ${{ env.CurrentVersion }} to ${{ env.ActualVersion }} (Attempted ${{ env.LatestVersion }} )"
@@ -169,21 +192,23 @@ runs:
 
     - name: Check for existing PR
       run: |
-        $VerbosePreference = "continue"
+        $VerbosePreference = ($Env:INPUT_VERBOSE -eq "true") ? "Continue" : "SilentlyContinue"
         $ghRepoParts = "${{ github.repository }}".Split("/")
         $pr = Get-PullRequest -OwnerName $ghRepoParts[0] -RepositoryName $ghRepoParts[1] -AccessToken ${{ inputs.github-token }} -BranchName ${{ env.BranchName }}
         if ($pr) {
-            throw "A Pull Request already exists for this upgrade"
+          echo "::error::A Pull Request already exists for this upgrade"
+          exit 1
         }
         else {
-            Write-Verbose "An existing PR for this upgrade does not exist"            
+          echo "::debug::An existing PR for this upgrade does not exist"
         }
       shell: pwsh
 
     - name: Push Changes
       run : |
         if ($Env:INPUT_DISABLE_PUSH -eq "true") {
-          Throw "Commit step is disabled. Quitting."
+          echo "::warning::Commit step is disabled. Quitting."
+          exit 1
         }
 
         git -c "user.name=${{ inputs.git-bot-user }}" -c "user.email=${{ inputs.git-bot-email }}" push -u origin "${{ env.BranchName }}"
@@ -191,8 +216,11 @@ runs:
       
     - name: Creating pull request
       run : |
+        $VerbosePreference = ($Env:INPUT_VERBOSE -eq "true") ? "Continue" : "SilentlyContinue"
+        
         if ($Env:INPUT_DISABLE_PULL_REQUEST -eq "true") {
-          Throw "Commit step is disabled. Quitting."
+          echo "::warning::Pull request step is disabled. Quitting."
+          exit 1
         }
 
         $ghRepoParts = "${{ github.repository }}".Split("/")
