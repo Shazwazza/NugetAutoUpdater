@@ -277,10 +277,24 @@ function Invoke-NugetUpdate
     # NOTE: -DependencyVersion Ignore is required for some reason, without that we cannot upgrade in many cases, still haven't figured out why
 
     if ($MSBuildPath) {
-        & $NugetExe update "$ProjectFile" -ConfigFile "$NugetConfigFile" -RepositoryPath "$PackagesPath" -Id "$PackageName" -FileConflictAction overwrite -NonInteractive -MSBuildPath "$MSBuildPath" -Version $PackageVersion
+        if ($PackageVersion) {
+            # explicit version
+            & $NugetExe update "$ProjectFile" -ConfigFile "$NugetConfigFile" -RepositoryPath "$PackagesPath" -Id "$PackageName" -FileConflictAction overwrite -NonInteractive -MSBuildPath "$MSBuildPath" -Version $PackageVersion
+        }
+        else {
+            # just update to latest compatible
+            & $NugetExe update "$ProjectFile" -ConfigFile "$NugetConfigFile" -RepositoryPath "$PackagesPath" -Id "$PackageName" -FileConflictAction overwrite -NonInteractive -MSBuildPath "$MSBuildPath"
+        }
     }
     else {
-        & $NugetExe update "$ProjectFile" -ConfigFile "$NugetConfigFile" -RepositoryPath "$PackagesPath" -Id "$PackageName" -FileConflictAction overwrite -NonInteractive -Version $PackageVersion
+        if ($PackageVersion) {
+            # explicit version
+            & $NugetExe update "$ProjectFile" -ConfigFile "$NugetConfigFile" -RepositoryPath "$PackagesPath" -Id "$PackageName" -FileConflictAction overwrite -NonInteractive -Version $PackageVersion
+        }
+        else {
+            # just update to latest compatible
+            & $NugetExe update "$ProjectFile" -ConfigFile "$NugetConfigFile" -RepositoryPath "$PackagesPath" -Id "$PackageName" -FileConflictAction overwrite -NonInteractive
+        }
     }
     
     if($LASTEXITCODE -eq 0) {
