@@ -3,7 +3,7 @@ author: Shannon Deminick
 description: 'Auto upgrade nuget packages in your projects'
 inputs:
   github_token:
-    description: 'A GitHub token that has access to this repository to push and create a PR. Typically just pass in ${{ secrets.GITHUB_TOKEN }}'
+    description: 'A GitHub token that has access to this repository to push and create a PR. Typically just pass in secrets.GITHUB_TOKEN'
     required: true
   project-file:
     description: 'The relative path of your project file to upgrade (i.e. src/Shazwazza.Web/Shazwazza.Web.csproj)'
@@ -134,7 +134,8 @@ runs:
 
     - name: Building project
       working-directory: ${{ github.workspace }}
-      run: & msbuild ${{ inputs.project-file}}
+      run: |
+        & msbuild ${{ inputs.project-file}}
       shell: pwsh
 
     - name: Renaming Branch
