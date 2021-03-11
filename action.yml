@@ -2,7 +2,7 @@ name: 'Nuget Auto Upgrader'
 author: Shannon Deminick
 description: 'Auto upgrade nuget packages in your projects'
 inputs:
-  github_token:
+  github-token:
     description: 'A GitHub token that has access to this repository to push and create a PR. Typically just pass in secrets.GITHUB_TOKEN'
     required: true
   project-file:
@@ -66,7 +66,7 @@ runs:
     - name: "Get latest version of ${{ inputs.package-name }} from GitHub"
       run: |
         $ghRepoParts = "${{ github.repository }}".Split("/")
-        $currentVersion = Get-CurrentPackageVersion -OwnerName $ghRepoParts[0] -RepositoryName $ghRepoParts[1] -AccessToken ${{ inputs.github_token }} -PackageFile ${{ inputs.package-file }} -PackageName ${{ inputs.package-name }}
+        $currentVersion = Get-CurrentPackageVersion -OwnerName $ghRepoParts[0] -RepositoryName $ghRepoParts[1] -AccessToken ${{ inputs.github-token }} -PackageFile ${{ inputs.package-file }} -PackageName ${{ inputs.package-name }}
         if (!$currentVersion){
             Throw "Could not determine package version, cannot continue"
         }
@@ -100,6 +100,8 @@ runs:
     
     - name: Creating branch
       run: |
+        echo "HasUpgrade? $Env.HasUpgrade"
+
         if ($Env.HasUpgrade -ne "True") {
           Throw "No upgrade detected"
         }
@@ -164,7 +166,7 @@ runs:
     - name: Check for existing PR
       run: |
         $ghRepoParts = "${{ github.repository }}".Split("/")
-        $pr = Get-PullRequest -OwnerName $ghRepoParts[0] -RepositoryName $ghRepoParts[1] -AccessToken ${{ inputs.github_token }} -BranchName ${{ env.BranchName }}
+        $pr = Get-PullRequest -OwnerName $ghRepoParts[0] -RepositoryName $ghRepoParts[1] -AccessToken ${{ inputs.github-token }} -BranchName ${{ env.BranchName }}
         if ($pr) {
             throw "A Pull Request already exists for this upgrade"
         }
@@ -189,5 +191,5 @@ runs:
         }
 
         $ghRepoParts = "${{ github.repository }}".Split("/")
-        $pr = New-PullRequest -OwnerName $ghRepoParts[0] -RepositoryName $ghRepoParts[1] -AccessToken ${{ inputs.github_token }} -SourceVersion ${{ env.CurrentVersion }} -PackageVersion ${{ env.ActualVersion }} -PackageName ${{ inputs.package-name }} -BranchName ${{ env.BranchName }}
+        $pr = New-PullRequest -OwnerName $ghRepoParts[0] -RepositoryName $ghRepoParts[1] -AccessToken ${{ inputs.github-token }} -SourceVersion ${{ env.CurrentVersion }} -PackageVersion ${{ env.ActualVersion }} -PackageName ${{ inputs.package-name }} -BranchName ${{ env.BranchName }}
       shell: pwsh
