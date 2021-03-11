@@ -157,7 +157,6 @@ function Update-NugetPackage
         [Parameter(Mandatory)]
         [string] $PackageName,
 
-        [Parameter(Mandatory)]
         [string] $PackageVersion,
 
         [Parameter(Mandatory)]

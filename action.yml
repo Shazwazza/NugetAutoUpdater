@@ -45,7 +45,7 @@ runs:
   steps:
     - name: Installing modules and initializing
       run: |
-        $VerbosePreference = "continue"
+        # $VerbosePreference = "continue"
 
         # Create temp folder
         $tempFolder = "$Env:GITHUB_WORKSPACE\build\_temp"
@@ -99,9 +99,7 @@ runs:
       shell: pwsh    
     
     - name: Creating branch
-      run: |
-        Write-Verbose "HasUpgrade? $Env:HasUpgrade" -Verbose
-        
+      run: |        
         if ($Env:HasUpgrade -ne "True") {
           Throw "No upgrade detected"
         }
