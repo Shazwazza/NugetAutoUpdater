@@ -65,18 +65,22 @@ runs:
       
     - name: "Get latest version of ${{ inputs.package-name }} from GitHub"
       run: |
+        $VerbosePreference = "continue"
+
         $ghRepoParts = "${{ github.repository }}".Split("/")
         $currentVersion = Get-CurrentPackageVersion -OwnerName $ghRepoParts[0] -RepositoryName $ghRepoParts[1] -AccessToken ${{ inputs.github-token }} -PackageFile ${{ inputs.package-file }} -PackageName ${{ inputs.package-name }}
         if (!$currentVersion){
             Throw "Could not determine package version, cannot continue"
         }
-        Write-Verbose "Latest local version of ${{ inputs.package-name }} is $currentVersion" -Verbose
+        Write-Verbose "Latest local version of ${{ inputs.package-name }} is $currentVersion"
         # set the variables
         echo ("CurrentVersion=" + $currentVersion) >> $Env:GITHUB_ENV
       shell: pwsh
     
     - name: Get latest version of ${{ inputs.package-name }} from Nuget
       run: |
+        $VerbosePreference = "continue"
+
         #$nuget = Get-NugetExe -DestinationFolder $Env:AGENT_TEMPDIRECTORY
         #$latest = Get-LatestPackageVersion -PackageName ${{ inputs.package-name }} -NugetExe $nuget
         # TRY JUST PASSING IN THE DEFAULT nuget
@@ -85,12 +89,12 @@ runs:
         if (!$latest){
             Throw "Could not determine package version, cannot continue"
         }
-        Write-Verbose "Latest nuget version of ${{ inputs.package-name }} is $latest" -Verbose
+        Write-Verbose "Latest nuget version of ${{ inputs.package-name }} is $latest"
 
         # Compare versions
         $hasUpgrade = Get-UpgradeAvailable -SourceVersion ${{ env.CurrentVersion }} -DestVersion $latest
         if ($hasUpgrade) {
-            Write-Verbose "An upgrade is available!" -Verbose
+            Write-Verbose "An upgrade is available!"
         }
         # set the variables
         echo ("LatestVersion=" + $latest) >> $Env:GITHUB_ENV
@@ -99,7 +103,9 @@ runs:
       shell: pwsh    
     
     - name: Creating branch
-      run: |        
+      run: |
+        $VerbosePreference = "continue"
+        
         if ($Env:HasUpgrade -ne "True") {
           Throw "No upgrade detected"
         }
@@ -112,7 +118,7 @@ runs:
 
         git show-ref --verify --quiet `"refs/heads/$branchName`"
         if ($?){
-            Write-Verbose "Branch $branchName already exists, updating to branch" -Verbose
+            Write-Verbose "Branch $branchName already exists, updating to branch"
             git checkout "$branchName"
         }
         else {
@@ -122,7 +128,6 @@ runs:
 
         # set the variables
         echo ("BranchName=" + $branchName) >> $Env:GITHUB_ENV
-        # echo ("Success=" + "True") >> $Env:GITHUB_ENV
       shell: pwsh
       
     - name: Upgrading project
@@ -163,13 +168,14 @@ runs:
 
     - name: Check for existing PR
       run: |
+        $VerbosePreference = "continue"
         $ghRepoParts = "${{ github.repository }}".Split("/")
         $pr = Get-PullRequest -OwnerName $ghRepoParts[0] -RepositoryName $ghRepoParts[1] -AccessToken ${{ inputs.github-token }} -BranchName ${{ env.BranchName }}
         if ($pr) {
             throw "A Pull Request already exists for this upgrade"
         }
         else {
-            Write-Verbose "An existing PR for this upgrade does not exist" -Verbose            
+            Write-Verbose "An existing PR for this upgrade does not exist"            
         }
       shell: pwsh
 

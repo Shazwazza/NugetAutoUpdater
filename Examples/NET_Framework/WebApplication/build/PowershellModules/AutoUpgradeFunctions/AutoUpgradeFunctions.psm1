@@ -194,7 +194,12 @@ function Update-NugetPackage
     if ($nugetResult -eq $true)
     {
         # Then we can do a nuget update
-        Invoke-NugetUpdate -NugetExe "$NugetExe" -PackageName "$PackageName" -PackageVersion $PackageVersion -ProjectFile "$projFile" -NugetConfigFile "$nugetConfigFilePath" -PackagesPath "$packagesPath" -MSBuildPath "$MSBuildPath"
+        if ($PackageVersion) {
+            Invoke-NugetUpdate -NugetExe "$NugetExe" -PackageName "$PackageName" -PackageVersion $PackageVersion -ProjectFile "$projFile" -NugetConfigFile "$nugetConfigFilePath" -PackagesPath "$packagesPath" -MSBuildPath "$MSBuildPath"
+        }
+        else {
+            Invoke-NugetUpdate -NugetExe "$NugetExe" -PackageName "$PackageName" -ProjectFile "$projFile" -NugetConfigFile "$nugetConfigFilePath" -PackagesPath "$packagesPath" -MSBuildPath "$MSBuildPath"
+        }
     }
 }
 
