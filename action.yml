@@ -188,16 +188,22 @@ runs:
           exit 1
         }
 
+        echo "::group::Committing changes"
         $message = "Updated files for the ${{ inputs.package-name }} from ${{ env.CurrentVersion }} to ${{ env.ActualVersion }} (Attempted ${{ env.LatestVersion }} )"
         git add -A
         git -c "user.name=${{ inputs.git-bot-user }}" -c "user.email=${{ inputs.git-bot-email }}" commit -am "$message" --author "${{ inputs.git-bot-user }} <${{ env.GitBotEmail }}>"
+        echo "::endgroup::"
       shell: pwsh
 
     - name: Check for existing PR
       run: |
         $VerbosePreference = ($Env:INPUT_VERBOSE -eq "true") ? "Continue" : "SilentlyContinue"
+        
+        echo "::group::Checking for existing Pull Request"
         $ghRepoParts = "${{ github.repository }}".Split("/")
         $pr = Get-PullRequest -OwnerName $ghRepoParts[0] -RepositoryName $ghRepoParts[1] -AccessToken ${{ inputs.github-token }} -BranchName ${{ env.BranchName }}
+        echo "::endgroup::"
+
         if ($pr) {
           echo "::error::A Pull Request already exists for this upgrade"
           exit 1
@@ -213,8 +219,10 @@ runs:
           echo "::warning::Commit step is disabled. Quitting."
           exit 1
         }
-
+        
+        echo "::group::Pushing changes"
         git -c "user.name=${{ inputs.git-bot-user }}" -c "user.email=${{ inputs.git-bot-email }}" push -u origin "${{ env.BranchName }}"
+        echo "::endgroup::"
       shell: pwsh
       
     - name: Creating pull request
@@ -225,7 +233,8 @@ runs:
           echo "::warning::Pull request step is disabled. Quitting."
           exit 1
         }
-
+        echo "::group::Creating Pull Request"
         $ghRepoParts = "${{ github.repository }}".Split("/")
         $pr = New-PullRequest -OwnerName $ghRepoParts[0] -RepositoryName $ghRepoParts[1] -AccessToken ${{ inputs.github-token }} -SourceVersion ${{ env.CurrentVersion }} -PackageVersion ${{ env.ActualVersion }} -PackageName ${{ inputs.package-name }} -BranchName ${{ env.BranchName }}
+        echo "::endgroup::"
       shell: pwsh
