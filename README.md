@@ -41,6 +41,7 @@ jobs:
         disable-commit: false           # Used for testing
         disable-push: false             # Used for testing
         disable-pull-request: false     # Used for testing
+        verbose: false                  # Used for testing
 ```
 
 ## TODO
