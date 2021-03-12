@@ -200,10 +200,10 @@ runs:
         $VerbosePreference = ($Env:INPUT_VERBOSE -eq "true") ? "Continue" : "SilentlyContinue"
         
         echo "::group::Checking for existing Pull Request"
+        
         $ghRepoParts = "${{ github.repository }}".Split("/")
         $pr = Get-PullRequest -OwnerName $ghRepoParts[0] -RepositoryName $ghRepoParts[1] -AccessToken ${{ inputs.github-token }} -BranchName ${{ env.BranchName }}
-        echo "::endgroup::"
-
+        
         if ($pr) {
           echo "::error::A Pull Request already exists for this upgrade"
           exit 1
@@ -211,6 +211,8 @@ runs:
         else {
           echo "An existing PR for this upgrade does not exist"
         }
+
+        echo "::endgroup::"
       shell: pwsh
 
     - name: Push Changes
