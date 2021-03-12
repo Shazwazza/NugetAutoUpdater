@@ -2,9 +2,11 @@
 
 This GitHub Action is used to auto upgrade your Nuget packages for .NET projects. Typically this would be used on a schedule job.
 
-_Currently only supporting .NET Framework projects (.csproj) with packagse.config_
+## Status
 
-See blog post for full details: https://shazwazza.com/post/auto-upgrade-your-nuget-packages-for-net-projects-with-azure-pipelines/
+__Beta (unpublished)__
+
+_Currently only supporting .NET Framework projects (.csproj) with packagse.config_
 
 ## Usage
 
@@ -51,6 +53,8 @@ jobs:
 ## Additional scripts
 
 This repository also contains scripts that can be used manually in your build configurations too and can be used for GitHub actions and Azure Pipelines.
+
+See blog post for full details: https://shazwazza.com/post/auto-upgrade-your-nuget-packages-for-net-projects-with-azure-pipelines/
 
 ### Working
 
