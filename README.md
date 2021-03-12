@@ -6,7 +6,7 @@ This GitHub Action is used to auto upgrade your Nuget packages for .NET projects
 
 __Beta (unpublished)__
 
-_Currently only supporting .NET Framework projects (.csproj) with packagse.config_
+_Currently only supporting .NET Framework projects (.csproj) with packages.config_
 
 ## Usage
 
