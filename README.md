@@ -1,6 +1,6 @@
-# Nuget Auto Upgrade
+# Nuget Auto Updater
 
-This GitHub Action is used to auto upgrade your Nuget packages for .NET projects. Typically this would be used on a schedule job.
+This GitHub Action is used to auto update your Nuget packages for .NET projects. Typically this would be used on a schedule job.
 
 ## Status
 
