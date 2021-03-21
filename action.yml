@@ -140,14 +140,13 @@ runs:
 
           # set the variables
           echo ("BranchName=" + $branchName) >> $Env:GITHUB_ENV
-          echo "ActionContinue='false'" >> $Env:GITHUB_ENV
         }
       shell: pwsh
       
     - name: Upgrading project
       run: |
         $actionContinue = "${{ env.BranchName }}"
-        if ($actionContinue -eq 'true') {
+        if ($actionContinue -ne 'false') {
           $VerbosePreference = ($Env:INPUT_VERBOSE -eq "true") ? "Continue" : "SilentlyContinue"
           
           echo "::group::Running Nuget update for package ${{ inputs.package-name }}"
@@ -164,7 +163,7 @@ runs:
       working-directory: ${{ github.workspace }}
       run: |
         $actionContinue = "${{ env.BranchName }}"
-        if ($actionContinue -eq 'true') {
+        if ($actionContinue -ne 'false') {
           echo "::group::Building the project ${{ inputs.project-file}}"
           & msbuild ${{ inputs.project-file}}
           echo "::endgroup::"
@@ -174,7 +173,7 @@ runs:
     - name: Renaming Branch
       run: |
         $actionContinue = "${{ env.BranchName }}"
-        if ($actionContinue -eq 'true') {
+        if ($actionContinue -ne 'false') {
           $actualVersion = Get-ConfigPackageVersion -PackageFile ${{ inputs.package-file }} -PackageName ${{ inputs.package-name }}
           $branchName = "${{ inputs.package-name }}-upgrade-${{ env.CurrentVersion }}-to-$actualVersion"
           
@@ -209,7 +208,7 @@ runs:
     - name: Check for existing PR
       run: |
         $actionContinue = "${{ env.BranchName }}"
-        if ($actionContinue -eq 'true') {
+        if ($actionContinue -ne 'false') {
           $VerbosePreference = ($Env:INPUT_VERBOSE -eq "true") ? "Continue" : "SilentlyContinue"
           
           echo "::group::Checking for existing Pull Request"
@@ -232,7 +231,7 @@ runs:
     - name: Push Changes
       run : |
         $actionContinue = "${{ env.BranchName }}"
-        if ($actionContinue -eq 'true') {
+        if ($actionContinue -ne 'false') {
           if ($Env:INPUT_DISABLE_PUSH -eq "true") {
             echo "::warning::Commit step is disabled. Quitting."
             echo "ActionContinue='false'" >> $Env:GITHUB_ENV
@@ -248,7 +247,7 @@ runs:
     - name: Creating pull request
       run : |
         $actionContinue = "${{ env.BranchName }}"
-        if ($actionContinue -eq 'true') {
+        if ($actionContinue -ne 'false') {
           $VerbosePreference = ($Env:INPUT_VERBOSE -eq "true") ? "Continue" : "SilentlyContinue"
 
           if ($Env:INPUT_DISABLE_PULL_REQUEST -eq "true") {
