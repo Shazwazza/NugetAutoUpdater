@@ -193,16 +193,19 @@ runs:
     
     - name: Committing changes
       run: |
-        if ($Env:INPUT_DISABLE_COMMIT -eq "true") {
-          echo "::warning::Commit step is disabled. Quitting."
-          echo "ActionContinue=false" >> $Env:GITHUB_ENV
-        }
-        else {
-          echo "::group::Committing changes"
-          $message = "Updated files for the ${{ inputs.package-name }} from ${{ env.CurrentVersion }} to ${{ env.ActualVersion }} (Attempted ${{ env.LatestVersion }} )"
-          git add -A
-          git -c "user.name=${{ inputs.git-bot-user }}" -c "user.email=${{ inputs.git-bot-email }}" commit -am "$message" --author "${{ inputs.git-bot-user }} <${{ env.GitBotEmail }}>"
-          echo "::endgroup::"
+        $actionContinue = "${{ env.ActionContinue }}"
+        if ($actionContinue -ne 'false') {
+          if ($Env:INPUT_DISABLE_COMMIT -eq "true") {
+            echo "::warning::Commit step is disabled. Quitting."
+            echo "ActionContinue=false" >> $Env:GITHUB_ENV
+          }
+          else {
+            echo "::group::Committing changes"
+            $message = "Updated files for the ${{ inputs.package-name }} from ${{ env.CurrentVersion }} to ${{ env.ActualVersion }} (Attempted ${{ env.LatestVersion }} )"
+            git add -A
+            git -c "user.name=${{ inputs.git-bot-user }}" -c "user.email=${{ inputs.git-bot-email }}" commit -am "$message" --author "${{ inputs.git-bot-user }} <${{ env.GitBotEmail }}>"
+            echo "::endgroup::"
+          }        
         }        
       shell: pwsh
 
