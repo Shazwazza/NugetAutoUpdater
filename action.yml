@@ -140,7 +140,7 @@ runs:
 
           # set the variables
           echo ("BranchName=" + $branchName) >> $Env:GITHUB_ENV
-          echo ("ActionContinue='true') >> $Env:GITHUB_ENV
+          echo "ActionContinue='false'" >> $Env:GITHUB_ENV
         }
       shell: pwsh
       
