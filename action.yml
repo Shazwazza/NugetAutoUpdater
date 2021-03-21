@@ -145,7 +145,7 @@ runs:
       
     - name: Upgrading project
       run: |
-        $actionContinue = "${{ env.BranchName }}"
+        $actionContinue = "${{ env.ActionContinue }}"
         if ($actionContinue -ne 'false') {
           $VerbosePreference = ($Env:INPUT_VERBOSE -eq "true") ? "Continue" : "SilentlyContinue"
           
@@ -162,7 +162,7 @@ runs:
     - name: Building project
       working-directory: ${{ github.workspace }}
       run: |
-        $actionContinue = "${{ env.BranchName }}"
+        $actionContinue = "${{ env.ActionContinue }}"
         if ($actionContinue -ne 'false') {
           echo "::group::Building the project ${{ inputs.project-file}}"
           & msbuild ${{ inputs.project-file}}
@@ -172,7 +172,7 @@ runs:
 
     - name: Renaming Branch
       run: |
-        $actionContinue = "${{ env.BranchName }}"
+        $actionContinue = "${{ env.ActionContinue }}"
         if ($actionContinue -ne 'false') {
           $actualVersion = Get-ConfigPackageVersion -PackageFile ${{ inputs.package-file }} -PackageName ${{ inputs.package-name }}
           $branchName = "${{ inputs.package-name }}-upgrade-${{ env.CurrentVersion }}-to-$actualVersion"
@@ -207,7 +207,7 @@ runs:
 
     - name: Check for existing PR
       run: |
-        $actionContinue = "${{ env.BranchName }}"
+        $actionContinue = "${{ env.ActionContinue }}"
         if ($actionContinue -ne 'false') {
           $VerbosePreference = ($Env:INPUT_VERBOSE -eq "true") ? "Continue" : "SilentlyContinue"
           
@@ -230,7 +230,7 @@ runs:
 
     - name: Push Changes
       run : |
-        $actionContinue = "${{ env.BranchName }}"
+        $actionContinue = "${{ env.ActionContinue }}"
         if ($actionContinue -ne 'false') {
           if ($Env:INPUT_DISABLE_PUSH -eq "true") {
             echo "::warning::Commit step is disabled. Quitting."
@@ -246,7 +246,7 @@ runs:
       
     - name: Creating pull request
       run : |
-        $actionContinue = "${{ env.BranchName }}"
+        $actionContinue = "${{ env.ActionContinue }}"
         if ($actionContinue -ne 'false') {
           $VerbosePreference = ($Env:INPUT_VERBOSE -eq "true") ? "Continue" : "SilentlyContinue"
 
