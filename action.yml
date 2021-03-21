@@ -146,7 +146,6 @@ runs:
     - name: Upgrading project
       run: |
         $actionContinue = "${{ env.ActionContinue }}"
-        Write-Host "ActionContinue == $actionContinue"
         if ($actionContinue -ne 'false') {
           $VerbosePreference = ($Env:INPUT_VERBOSE -eq "true") ? "Continue" : "SilentlyContinue"
           
