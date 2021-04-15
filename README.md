@@ -2,7 +2,7 @@
 
 This GitHub Action is used to auto update your Nuget packages for **.NET Framework projects**. Typically this would be used on a schedule job.
 
-For non .NET Framework project, GitHub's [Dependabot](https://github.blog/2020-06-01-keep-all-your-packages-up-to-date-with-dependabot/) is probably the easiest way. Dependabot does not work well for .NET Framework projects because it doesn't actually run the nuget installer against your project so your csproj doesn't get updated with new references. 
+_For non .NET Framework project, GitHub's [Dependabot](https://github.blog/2020-06-01-keep-all-your-packages-up-to-date-with-dependabot/) is probably the easiest way. Dependabot does not work well for .NET Framework projects because it doesn't actually run the nuget installer against your project so your csproj doesn't get updated with new references._
 
 ## Status
 
