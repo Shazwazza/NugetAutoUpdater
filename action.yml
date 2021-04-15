@@ -3,7 +3,7 @@ author: Shannon Deminick
 branding:
   icon: 'sunrise'
   color: 'blue'
-description: 'Auto upgrade nuget packages in your projects'
+description: 'Auto upgrade nuget packages for your .NET Framework projects'
 inputs:
   github-token:
     description: 'A GitHub token that has access to this repository to push and create a PR. Typically just pass in secrets.GITHUB_TOKEN'
