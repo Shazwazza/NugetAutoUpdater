@@ -52,6 +52,10 @@ jobs:
 * Entire solutions (.sln)
 * .NET Framework projects with Package Reference
 
+## Known issues
+
+Nuget packages that rely on legacy Nuget PowerShell scripts (i.e. install.ps1) may not work correctly because the PowerShell scripts do not execute. This functionality is embedded into Visual Studio and not Nuget itself. The plan is to partially support this feature but it may never work perfectly.
+
 ## Additional scripts
 
 This repository also contains scripts that can be used manually in your build configurations too and can be used for GitHub actions and Azure Pipelines.
